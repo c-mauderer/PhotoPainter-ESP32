@@ -106,3 +106,10 @@ This project is dual-licensed under MIT and Apache License 2.0. See [LICENSE](LI
 ## 🙏 Acknowledgments
 
 - **Waveshare** - For the excellent PhotoPainter hardware and documentation example project
+
+## 🏗️ Build Software
+
+Make sure you have `platform.io` installed. Then run `pio run`. On Windows, this
+will install the tools to `C:\git\.platformio`. On Linux, this will create a
+dirctory `C:/git/.platformio` in the current working directory. If you want some
+different directory, change the `core_dir` in `platformio.ini`.
