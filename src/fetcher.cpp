@@ -14,16 +14,32 @@
 
 #include <Arduino.h>
 #include <WiFiManager.h>
-#include <HTTPClient.h>
 #include <WiFiClientSecure.h> // For HTTPS support
-#include <ESPmDNS.h>
 #include <Wire.h>
 #include <ImageData.h>
+#include <Preferences.h> // For persistent URL storage
+#include <DNSServer.h> // For captive portal support
+
+#ifdef ESP8266
+#include <ESP8266HTTPClient.h>
+#include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h> // For web UI
+#include <ESP8266WiFi.h>
+
+#define WebServer ESP8266WebServer
+#define UPDATE_SIZE_UNKNOWN 0xFFFFFFFF
+#define WIFI_AUTH_OPEN ENC_TYPE_NONE
+
+static uint64_t mySleepTimeUS = 30ULL * 60ULL * 1000000ULL;
+#define esp_deep_sleep_start() ESP.deepSleep(mySleepTimeUS)
+#define esp_sleep_enable_timer_wakeup(sleepTimeUS) do { mySleepTimeUS = (sleepTimeUS); } while(0)
+
+#else /* ESP32 */
+#include <HTTPClient.h>
+#include <ESPmDNS.h>
 #include <esp_sleep.h> // For deep sleep power management
 #include <WebServer.h> // For web UI
-#include <Preferences.h> // For persistent URL storage
 #include <Update.h> // For OTA firmware updates
-#include <DNSServer.h> // For captive portal support
 
 // ESP32 WiFi Power Management Includes
 #include <WiFi.h>
@@ -32,6 +48,7 @@
 // ESP32 Model Detection Includes
 #include <esp_chip_info.h>
 #include <esp_system.h>
+#endif
 
 // ESP32 Performance Optimization Includes
 #ifdef ESP32_PERFORMANCE_OPTIMIZED
@@ -848,10 +865,12 @@ void setWiFiLowPowerMode() {
   
   // ESP32 low power WiFi settings
   WiFi.setSleep(WIFI_PS_MAX_MODEM); // Maximum power saving
+#ifndef ESP8266
   WiFi.setTxPower(WIFI_POWER_2dBm); // Minimum transmission power (2dBm)
   
   // Reduce WiFi beacon interval monitoring for power saving
   esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+#endif
   
   Serial.println("✅ WiFi LOW POWER mode active:");
   Serial.println("   • Power Save: MAX_MODEM (aggressive power saving)");
@@ -865,10 +884,12 @@ void setWiFiPerformanceMode() {
   
   // ESP32 high performance WiFi settings
   WiFi.setSleep(WIFI_PS_NONE); // Disable power saving completely
+#ifndef ESP8266
   WiFi.setTxPower(WIFI_POWER_19_5dBm); // Maximum transmission power (19.5dBm)
   
   // Disable power saving for maximum throughput
   esp_wifi_set_ps(WIFI_PS_NONE);
+#endif
   
   Serial.println("✅ WiFi HIGH PERFORMANCE mode active:");
   Serial.println("   • Power Save: DISABLED (maximum performance)");
@@ -891,6 +912,17 @@ void setWiFiShutdownMode() {
 
 // ESP32 Model Detection and Information Display
 void printESP32ModelInfo() {
+#ifdef ESP8266
+  Serial.println("\n📱 === ESP8266 HARDWARE INFORMATION ===");
+  // Chip Information
+  Serial.printf("🔧 Chip-ID: %08x\n", ESP.getChipId());
+  Serial.printf("⚡ CPU Frequency: %d MHz\n", ESP.getCpuFreqMHz());
+  // Flash information
+  Serial.printf("💾 Flash Size: %.1f MiB\n", ESP.getFlashChipSize() / (1024.0 * 1024.0));
+  Serial.printf("⚡ Flash Speed: %.1f MHz\n", ESP.getFlashChipSpeed() / (1000.0 * 1000.0));
+  // Memory information
+  Serial.printf("🆓 Free Heap: %d bytes (%.1f KiB)\n", ESP.getFreeHeap(), ESP.getFreeHeap() / 1024.0);
+#else /* ESP32 */
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
   
@@ -966,6 +998,7 @@ void printESP32ModelInfo() {
   
   Serial.printf("🌡️  Chip Temperature: %.1f°C\n", temperatureRead());
   Serial.println("======================================\n");
+#endif
 }
 
 // Get battery voltage from Pi Pico with retry logic
