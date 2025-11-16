@@ -44,7 +44,6 @@ extern "C" {
 
 // Forward declarations
 void autoFetchOnBoot();
-bool downloadAndStreamImage(const char* url);
 bool downloadAndConvertBmpImage(const char* url);
 bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size);
 bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t total_size);
@@ -160,9 +159,6 @@ static constexpr size_t BUFFER_SIZE = 65536; // 64KB - MASSIVE buffer for ESP32 
 static constexpr size_t STREAM_BUFFER_SIZE = 131072; // 128KB - ULTRA streaming efficiency (was 64KB) 
 static constexpr size_t I2C_CHUNK_SIZE = 119; // Optimized I2C chunk size (128 - 9 byte header)
 static constexpr size_t ULTRA_BURST_SIZE = 65536; // 64KB - MAXIMUM burst transfer size (was 32KB)
-
-// Performance-optimized buffers - DMA-capable when available
-static uint8_t* stream_buffer = nullptr; 
 
 // I2C performance tracking - ESP32 high-precision timing
 #ifdef ESP32_PERFORMANCE_OPTIMIZED
@@ -2770,112 +2766,6 @@ void autoFetchOnBoot() {
   unsigned long total_time = millis() - auto_fetch_start;
   Serial.printf("⏱️ TOTAL AUTO-FETCH TIME: %lu ms (%.2f seconds)\n", total_time, total_time / 1000.0);
   Serial.println("=== AUTO-FETCH COMPLETE ===");
-}
-
-// Download and stream image directly to Pi Pico with MAXIMUM SPEED
-bool downloadAndStreamImage(const char* url) {
-  Serial.printf("Starting streaming download from: %s\n", url);
-  
-  HTTPClient http;
-  http.begin(url);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(5000); // BALANCED: 5s timeout for reliable downloads
-#ifndef ESP8266
-  http.setConnectTimeout(2000); // 2s connection timeout for reliable connection
-#endif
-  http.setReuse(false); // Don't reuse connections for faster cleanup
-  
-  int httpCode = http.GET();
-  
-  if (httpCode > 0) {
-    Serial.printf("HTTP response code: %d\n", httpCode);
-    
-    if (httpCode == HTTP_CODE_OK) {
-      int contentLength = http.getSize();
-      Serial.printf("Content length: %d bytes\n", contentLength);
-      
-      WiFiClient* stream = http.getStreamPtr();
-      size_t bytesRead = 0;
-      uint32_t chunk_id = 0;
-      unsigned long start_time = millis(); // For transfer speed calculation
-
-      Serial.printf("Streaming %d bytes in chunks...\n", contentLength);
-
-      while (http.connected() && bytesRead < contentLength) {
-        size_t available = stream->available();
-        if (available) {
-          // Read larger chunks using our dedicated streaming buffer
-          size_t toRead = min(available, (size_t)STREAM_BUFFER_SIZE);
-          toRead = min(toRead, (size_t)(contentLength - bytesRead));
-          
-          size_t readSize = stream->readBytes(stream_buffer, toRead);
-          
-          if (readSize > 0) {
-            // Split large buffer into I2C chunks and send immediately
-            size_t bytes_processed = 0;
-            while (bytes_processed < readSize) {
-              size_t chunk_size = min((size_t)I2C_CHUNK_SIZE, readSize - bytes_processed);
-              
-              // Send this chunk via I2C immediately  
-              if (!sendImageChunk(chunk_id, &stream_buffer[bytes_processed], chunk_size)) {
-                Serial.printf("✗ Failed to send streaming chunk %d\n", chunk_id);
-                http.end();
-                return false;
-              }
-              
-              chunk_id++;
-              bytes_processed += chunk_size;
-            }
-            
-            bytesRead += readSize;
-            
-            // Progress reporting every 20KB for less verbosity but speed monitoring
-            if (bytesRead % 20000 == 0) { // Every 20KB (was 10KB)
-              float percent = ((float)bytesRead / contentLength) * 100.0;
-              float kbps = (millis() > start_time) ? (bytesRead / (float)(millis() - start_time)) : 0;
-              Serial.printf("Streaming: %d/%d bytes (%.1f%%, %.1f KB/s)\n", 
-                           bytesRead, contentLength, percent, kbps);
-            }
-          
-          }
-        }
-      }
-
-      Serial.printf("✓ Streaming completed: %d bytes in %d chunks\n", bytesRead, chunk_id);
-      http.end();
-      
-      // Get battery info BEFORE sending render command (renderer will sleep after rendering)
-      Serial.println("Getting battery status before rendering...");
-      float voltage = getBatteryVoltage();
-      if (voltage > 0.0f) {
-        current_battery_voltage = voltage; // Update local cache
-        Serial.printf("✓ Pre-render battery voltage: %.2fV\n", voltage);
-      } else {
-        Serial.printf("⚠ Could not get battery voltage, using cached: %.2fV\n", current_battery_voltage);
-      }
-      
-      // Send battery info to display BEFORE rendering
-      sendBatteryInfoToDisplay(current_battery_voltage, display_cycle_count);
-      Serial.printf("🔋 Battery info sent before rendering: %.2fV, %u cycles\n", 
-                   current_battery_voltage, display_cycle_count);
-      
-      // Send render command
-      if (!sendRenderCommand()) {
-        return false;
-      }
-      Serial.println("✓ Render command sent - Pi Pico will now render and may sleep in battery mode");
-      
-      Serial.println("✓ Stream transfer and render command complete");
-      return true;
-    } else {
-      Serial.printf("✗ HTTP error: %d\n", httpCode);
-    }
-  } else {
-    Serial.printf("✗ HTTP connection failed: %s\n", http.errorToString(httpCode).c_str());
-  }
-  
-  http.end();
-  return false;
 }
 
 // Download and convert BMP to e-paper format with streaming (192,000 bytes)
