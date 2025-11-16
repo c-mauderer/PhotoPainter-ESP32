@@ -135,8 +135,13 @@ typedef struct BMP_INFO {
 
 // I2C Pin Configuration - PERFORMANCE OPTIMIZED
 // Using ESP32 hardware I2C pins with maximum performance settings
+#ifdef ESP8266
+static int I2C_SDA_PIN = 0;   // ESP8266 pin 0 connects to Renderer pin 4 (SDA)
+static int I2C_SCL_PIN = 2;   // ESP8266 pin 2 connects to Renderer pin 5 (SCL)
+#else
 static int I2C_SDA_PIN = 21;   // ESP32 pin 21 connects to Renderer pin 4 (SDA)  
 static int I2C_SCL_PIN = 22;   // ESP32 pin 22 connects to Renderer pin 5 (SCL)
+#endif
 #define PI_PICO_I2C_ADDRESS 0x42  // Pi Pico I2C slave address
 
 // PERFORMANCE OPTIMIZATION: Maximum I2C clock speed for ESP32
