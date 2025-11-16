@@ -164,10 +164,7 @@ static uint32_t write_cycle_counter = 0; // Track total write cycles for wear di
 
 // PERFORMANCE-OPTIMIZED buffer sizes for maximum ESP32 efficiency and speed
 // With 211KB free heap, we can use massive buffers for breakthrough performance!
-static constexpr size_t BUFFER_SIZE = 65536; // 64KB - MASSIVE buffer for ESP32 (was 32KB)
-static constexpr size_t STREAM_BUFFER_SIZE = 131072; // 128KB - ULTRA streaming efficiency (was 64KB) 
 static constexpr size_t I2C_CHUNK_SIZE = 119; // Optimized I2C chunk size (128 - 9 byte header)
-static constexpr size_t ULTRA_BURST_SIZE = 65536; // 64KB - MAXIMUM burst transfer size (was 32KB)
 
 // I2C performance tracking - ESP32 high-precision timing
 #ifdef ESP32_PERFORMANCE_OPTIMIZED
