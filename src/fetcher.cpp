@@ -162,12 +162,12 @@ static constexpr size_t I2C_CHUNK_SIZE = 119; // Optimized I2C chunk size (128 -
 static constexpr size_t ULTRA_BURST_SIZE = 65536; // 64KB - MAXIMUM burst transfer size (was 32KB)
 
 // Performance-optimized buffers - DMA-capable when available
-static uint8_t* i2c_buffer = nullptr;
 static uint8_t* stream_buffer = nullptr; 
-static uint8_t* ultra_burst_buffer = nullptr;
 
 // I2C performance tracking - ESP32 high-precision timing
+#ifdef ESP32_PERFORMANCE_OPTIMIZED
 static int64_t total_i2c_time_us = 0;  // Microsecond precision timing
+#endif
 static size_t total_bytes_transferred = 0;
 uint32_t currentChunk = 0;  // Current chunk being sent
 uint32_t totalChunks = (sizeof(Image7color) + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SIZE; // Total chunks needed
@@ -414,9 +414,6 @@ bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t tot
   #else
   unsigned long burst_start = millis();
   #endif
-  
-  // PERFORMANCE OPTIMIZATION: Pre-allocate command buffer to eliminate overhead
-  static uint8_t cmd_buffer[9]; // Pre-allocated for zero-allocation transfers
   
   Serial.printf("🚀 PERFORMANCE burst transfer: %zu bytes at %.1f MHz I2C\n", 
                 total_size, I2C_CLOCK_SPEED / 1000000.0);
@@ -2783,7 +2780,9 @@ bool downloadAndStreamImage(const char* url) {
   http.begin(url);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(5000); // BALANCED: 5s timeout for reliable downloads
+#ifndef ESP8266
   http.setConnectTimeout(2000); // 2s connection timeout for reliable connection
+#endif
   http.setReuse(false); // Don't reuse connections for faster cleanup
   
   int httpCode = http.GET();
@@ -2919,7 +2918,9 @@ bool downloadAndConvertBmpImage(const char* url) {
   
   // OPTIMIZED timeouts for faster downloads
   http.setTimeout(12000); // 12 seconds for larger BMP files
+#ifndef ESP8266
   http.setConnectTimeout(3000); // 3s connection timeout for faster initial connection
+#endif
   http.setReuse(false); // Don't reuse connections for faster cleanup
   
   Serial.println("Making HTTP request with enhanced headers...");
