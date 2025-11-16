@@ -107,9 +107,19 @@ This project is dual-licensed under MIT and Apache License 2.0. See [LICENSE](LI
 
 - **Waveshare** - For the excellent PhotoPainter hardware and documentation example project
 
-## 🏗️ Build Software
+## 🏗️ Build and Load Software
 
 Make sure you have `platform.io` installed. Then run `pio run`. On Windows, this
 will install the tools to `C:\git\.platformio`. On Linux, this will create a
 dirctory `C:/git/.platformio` in the current working directory. If you want some
 different directory, change the `core_dir` in `platformio.ini`.
+
+To upload the software to the ESP8266, connect a serial interface to the ESP-01
+board, boot it in bootloader mode and use the following command:
+
+`pio run -e Fetcher8266 -t upload`
+
+You might have to adapt the serial port in `platformio.ini` to match your port.
+
+For the Waveshare display: Press the Boot button while connecting the USB and
+copy the `.pio/build/Renderer/firmware.uf2` to the new device.
