@@ -1202,7 +1202,7 @@ uint32_t getWakeupInterval() {
     for (int i = 0; i < 4; i++) {
       interval_bytes[i] = Wire.read();
     }
-    Serial.printf("✓ Current wakeup interval: %lu minutes\n", interval);
+    Serial.printf("✓ Current wakeup interval: %" PRIu32 " minutes\n", interval);
     return interval;
   } else {
     Serial.printf("Failed to read wakeup interval response\n");
@@ -1212,10 +1212,10 @@ uint32_t getWakeupInterval() {
 
 // Set RTC wakeup interval on Pi Pico (in minutes)
 bool setWakeupInterval(uint32_t minutes) {
-  Serial.printf("Setting wakeup interval to %lu minutes...\n", minutes);
+  Serial.printf("Setting wakeup interval to %" PRIu32 " minutes...\n", minutes);
   
   if (minutes < 1 || minutes > 43800) {
-    Serial.printf("Invalid wakeup interval: %lu (must be 1-43800 minutes)\n", minutes);
+    Serial.printf("Invalid wakeup interval: %" PRIu32 " (must be 1-43800 minutes)\n", minutes);
     return false;
   }
   
@@ -1239,10 +1239,10 @@ bool setWakeupInterval(uint32_t minutes) {
   if (Wire.available()) {
     uint8_t response = Wire.read();
     if (response == 0x82) {
-      Serial.printf("✓ Wakeup interval successfully set to %lu minutes\n", minutes);
+      Serial.printf("✓ Wakeup interval successfully set to %" PRIu32 " minutes\n", minutes);
       return true;
     } else if (response == 0x83) {
-      Serial.printf("Pi Pico rejected wakeup interval: %lu minutes\n", minutes);
+      Serial.printf("Pi Pico rejected wakeup interval: %" PRIu32 " minutes\n", minutes);
       return false;
     } else {
       Serial.printf("Unexpected response from Pi Pico: 0x%02X\n", response);
