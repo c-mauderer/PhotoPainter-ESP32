@@ -487,8 +487,13 @@ bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t tot
   }
   
   // Final performance calculation with ESP32 precision
+  #ifdef ESP32_PERFORMANCE_OPTIMIZED
   int64_t total_time = esp_timer_get_time() - burst_start;
   float final_speed = (float)total_size / (total_time / 1000.0);
+  #else
+  unsigned long total_time = millis() - burst_start;
+  float final_speed = total_time > 0 ? (float)bytes_sent / total_time : 0;
+  #endif
   total_bytes_transferred += total_size;
   
   Serial.printf("✅ PERFORMANCE burst complete: %zu bytes in %.1f ms (%.1f KB/s)\n", 
