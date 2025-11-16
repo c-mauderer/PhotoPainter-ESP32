@@ -60,48 +60,48 @@ extern "C" {
 #endif
 
 // Forward declarations
-void autoFetchOnBoot();
-bool downloadAndConvertBmpImage(const char* url);
-bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size);
-bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t total_size);
-bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles);
-bool getDebugMode();
-bool setDebugMode(bool enable);
-int calculateBatteryPercentage(float voltage);
-void saveUrls();
-void saveAdminSettings();
-void initUrlStorage();
-void initBatteryData();
-void saveBatteryData();
-String getCurrentUrlAndAdvance();
+static void autoFetchOnBoot();
+static bool downloadAndConvertBmpImage(const char* url);
+static bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size);
+static bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t total_size);
+static bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles);
+static bool getDebugMode();
+static bool setDebugMode(bool enable);
+static int calculateBatteryPercentage(float voltage);
+static void saveUrls();
+static void saveAdminSettings();
+static void initUrlStorage();
+static void initBatteryData();
+static void saveBatteryData();
+static String getCurrentUrlAndAdvance();
 
 // Helper function to clean up HTTP client and WiFiClient
-void cleanupHttpClient(HTTPClient& http, WiFiClient* client) {
+static void cleanupHttpClient(HTTPClient& http, WiFiClient* client) {
   http.end();
   if (client) {
     delete client;
     client = nullptr;
   }
 }
-bool addUrl(const String& url);
-bool removeUrl(int index);
+static bool addUrl(const String& url);
+static bool removeUrl(int index);
 
 // ESP32 WiFi Power Management Functions for Download Optimization
-void setWiFiLowPowerMode();
-void setWiFiPerformanceMode();
-void setWiFiShutdownMode();
+static void setWiFiLowPowerMode();
+static void setWiFiPerformanceMode();
+static void setWiFiShutdownMode();
 
 // ESP32 Model Detection and Information Display
-void printESP32ModelInfo();
-bool checkAuthentication();
-void handleLogin();
-void handleLogout();
-void handleDisplayCurrent();
-void handleDisplayImage();
-void handleNextImage();
-String getLoginPage();
-void handleFirmwareUpdate();
-void handleChangePassword();
+static void printESP32ModelInfo();
+static bool checkAuthentication();
+static void handleLogin();
+static void handleLogout();
+static void handleDisplayCurrent();
+static void handleDisplayImage();
+static void handleNextImage();
+static String getLoginPage();
+static void handleFirmwareUpdate();
+static void handleChangePassword();
 
 // E-paper color definitions (4-bit values)
 #define EPD_7IN3F_BLACK   0x0	/// 000
@@ -139,36 +139,36 @@ typedef struct BMP_INFO {
 
 // I2C Pin Configuration - PERFORMANCE OPTIMIZED
 // Using ESP32 hardware I2C pins with maximum performance settings
-int I2C_SDA_PIN = 21;   // ESP32 pin 21 connects to Renderer pin 4 (SDA)  
-int I2C_SCL_PIN = 22;   // ESP32 pin 22 connects to Renderer pin 5 (SCL)
+static int I2C_SDA_PIN = 21;   // ESP32 pin 21 connects to Renderer pin 4 (SDA)  
+static int I2C_SCL_PIN = 22;   // ESP32 pin 22 connects to Renderer pin 5 (SCL)
 #define PI_PICO_I2C_ADDRESS 0x42  // Pi Pico I2C slave address
 
 // PERFORMANCE OPTIMIZATION: Maximum I2C clock speed for ESP32
 #define I2C_CLOCK_SPEED 5000000   // 5MHz - Maximum reliable speed for ESP32 Wire
 
-WiFiManager wm;
+static WiFiManager wm;
 
 // Web server for configuration UI
-WebServer server(80);
+static WebServer server(80);
 
 // URL Management
 #define MAX_URLS 10              // Maximum number of URLs to store
 #define MAX_URL_LENGTH 512       // Maximum length per URL
-Preferences preferences;         // For persistent URL storage
-String imageUrls[MAX_URLS];      // Array to hold URLs
-int urlCount = 0;                // Current number of URLs
-int currentUrlIndex = 0;         // Index of current URL being used
+static Preferences preferences;         // For persistent URL storage
+static String imageUrls[MAX_URLS];      // Array to hold URLs
+static int urlCount = 0;                // Current number of URLs
+static int currentUrlIndex = 0;         // Index of current URL being used
 
 // Global variables for web UI display
-float current_battery_voltage = 0.0f;
-uint32_t current_wakeup_interval = 30;
-uint8_t current_charging_status = 3; // 0=not charging, 1=charging, 2=charge complete, 3=no external power
-bool current_debug_mode = false; // Track debug mode status
-uint32_t display_cycle_count = 0; // Track number of display updates for battery info
-unsigned long last_status_update = 0;
+static float current_battery_voltage = 0.0f;
+static uint32_t current_wakeup_interval = 30;
+static uint8_t current_charging_status = 3; // 0=not charging, 1=charging, 2=charge complete, 3=no external power
+static bool current_debug_mode = false; // Track debug mode status
+static uint32_t display_cycle_count = 0; // Track number of display updates for battery info
+static unsigned long last_status_update = 0;
 
 // Flash wear leveling for URL storage
-uint32_t write_cycle_counter = 0; // Track total write cycles for wear distribution
+static uint32_t write_cycle_counter = 0; // Track total write cycles for wear distribution
 
 // PERFORMANCE-OPTIMIZED buffer sizes for maximum ESP32 efficiency and speed
 // With 211KB free heap, we can use massive buffers for breakthrough performance!
@@ -182,8 +182,8 @@ static constexpr size_t ULTRA_BURST_SIZE = 65536; // 64KB - MAXIMUM burst transf
 static int64_t total_i2c_time_us = 0;  // Microsecond precision timing
 #endif
 static size_t total_bytes_transferred = 0;
-uint32_t currentChunk = 0;  // Current chunk being sent
-uint32_t totalChunks = (sizeof(Image7color) + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SIZE; // Total chunks needed
+static uint32_t currentChunk = 0;  // Current chunk being sent
+static uint32_t totalChunks = (sizeof(Image7color) + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SIZE; // Total chunks needed
 
 // I2C command definitions for master->slave communication
 #define CMD_WRITE_CHUNK       0x01
@@ -211,27 +211,27 @@ uint32_t totalChunks = (sizeof(Image7color) + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SI
 #define STATUS_DEBUG_ERROR    0x8A  // Error setting debug mode
 
 // Image download functionality
-uint8_t* downloaded_image = nullptr;
-size_t downloaded_size = 0;
-bool download_success = false;
+static uint8_t* downloaded_image = nullptr;
+static size_t downloaded_size = 0;
+static bool download_success = false;
 
 // Connection monitoring
-unsigned long lastI2CActivity = 0;
+static unsigned long lastI2CActivity = 0;
 
 // Auto-fetch state for battery mode management
 static bool auto_fetch_completed_in_battery_mode = false;
 
 // Authentication and security
-String adminPassword = "photoframe2024";  // Default password
-bool isAuthenticated = false;
-unsigned long authTimeout = 0;
-const unsigned long AUTH_TIMEOUT_MS = 900000; // 15 minutes session timeout
-const String MASTER_RESET_PASSWORD = "FACTORY_RESET_ESP32_2024"; // Master recovery password
-unsigned long i2cTransactionCount = 0;
-unsigned long errorCount = 0;
+static String adminPassword = "photoframe2024";  // Default password
+static bool isAuthenticated = false;
+static unsigned long authTimeout = 0;
+static const unsigned long AUTH_TIMEOUT_MS = 900000; // 15 minutes session timeout
+static const String MASTER_RESET_PASSWORD = "FACTORY_RESET_ESP32_2024"; // Master recovery password
+static unsigned long i2cTransactionCount = 0;
+static unsigned long errorCount = 0;
 
 // Convert RGB values to e-paper color index (from GUI_BMPfile.cpp algorithm)
-uint8_t rgbToEpaperColor(uint8_t r, uint8_t g, uint8_t b) {
+static uint8_t rgbToEpaperColor(uint8_t r, uint8_t g, uint8_t b) {
   // Correct Waveshare 7.3" F e-paper color mapping
   // Based on Waveshare documentation and actual color values
   
@@ -285,7 +285,7 @@ uint8_t rgbToEpaperColor(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 // Convert palette index to RGB using BMP palette
-void paletteToRgb(uint8_t index, const uint8_t* palette, uint8_t* r, uint8_t* g, uint8_t* b) {
+static void paletteToRgb(uint8_t index, const uint8_t* palette, uint8_t* r, uint8_t* g, uint8_t* b) {
   // BMP palette format: B, G, R, reserved (4 bytes per color)
   uint32_t offset = index * 4;
   *b = palette[offset];
@@ -294,7 +294,7 @@ void paletteToRgb(uint8_t index, const uint8_t* palette, uint8_t* r, uint8_t* g,
 }
 
 // Parse BMP header to extract dimensions and validate format
-bool parseBmpHeader(const uint8_t* data, size_t len, BMPFILEHEADER* fileHeader, BMPINFOHEADER* infoHeader) {
+static bool parseBmpHeader(const uint8_t* data, size_t len, BMPFILEHEADER* fileHeader, BMPINFOHEADER* infoHeader) {
   if (len < sizeof(BMPFILEHEADER) + sizeof(BMPINFOHEADER)) return false;
   
   // Copy file header
@@ -309,7 +309,7 @@ bool parseBmpHeader(const uint8_t* data, size_t len, BMPFILEHEADER* fileHeader, 
   return true;
 }
 
-void checkI2CConnectionHealth() {
+static void checkI2CConnectionHealth() {
   unsigned long currentTime = millis();
   
   // Check if we haven't seen any I2C activity for a while
@@ -331,7 +331,7 @@ void checkI2CConnectionHealth() {
   }
 }
 
-void printI2CConfiguration() {
+static void printI2CConfiguration() {
   Serial.println("=== ESP32 I2C MASTER CONFIGURATION ===");
   Serial.printf("Pi Pico Slave Address: 0x%02X\n", PI_PICO_I2C_ADDRESS);
   Serial.printf("Pin Configuration:\n");
@@ -357,7 +357,7 @@ void printI2CConfiguration() {
 }
 
 // Send a chunk of data to Pi Pico slave with improved retry and optimized speed
-bool sendImageChunk(uint32_t chunk_id, const uint8_t* data, size_t data_size) {
+static bool sendImageChunk(uint32_t chunk_id, const uint8_t* data, size_t data_size) {
   // I2C buffer limit: 128 bytes buffer - 5 bytes header = 123 bytes max data
   if (data_size > 123) data_size = 123; // Max data size to fit in I2C transaction
 
@@ -417,7 +417,7 @@ bool sendImageChunk(uint32_t chunk_id, const uint8_t* data, size_t data_size) {
 
 // ULTRA-HIGH PERFORMANCE: Enhanced burst I2C transmission using ESP32 optimizations
 // Target: Break 67 KB/s Arduino Wire limitation, achieve ~150+ KB/s throughput
-bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t total_size) {
+static bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t total_size) {
   const size_t MAX_CHUNK = 119; // I2C packet limit per transaction
   size_t bytes_sent = 0;
   
@@ -513,7 +513,7 @@ bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t tot
 }
 
 // Send a chunk of data to specific address offset in Pi Pico slave memory with improved retry
-bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size) {
+static bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size) {
   // I2C buffer limit: 128 bytes buffer - 9 bytes header = 119 bytes max data
   if (data_size > 119) data_size = 119; // Max data size to fit in I2C transaction with address
 
@@ -583,7 +583,7 @@ bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_
 }
 
 // Send render command to Pi Pico slave
-bool sendRenderCommand() {
+static bool sendRenderCommand() {
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
   Wire.write(CMD_RENDER_IMAGE);
   uint8_t error = Wire.endTransmission();
@@ -603,7 +603,7 @@ bool sendRenderCommand() {
 }
 
 // Send BMP reorder and render command to Pi Pico slave
-bool sendBmpRenderCommand() {
+static bool sendBmpRenderCommand() {
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
   Wire.write(CMD_RENDER_BMP_ORDER);
   uint8_t error = Wire.endTransmission();
@@ -623,7 +623,7 @@ bool sendBmpRenderCommand() {
 }
 
 // Test I2C communication with Pi Pico
-bool testI2CConnection() {
+static bool testI2CConnection() {
   Serial.println("=== TESTING I2C CONNECTION ===");
   
   // Test 1: Simple address check
@@ -668,7 +668,7 @@ bool testI2CConnection() {
 }
 
 // Get status from Pi Pico slave
-uint8_t getSlaveStatus() {
+static uint8_t getSlaveStatus() {
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
   Wire.write(CMD_GET_STATUS);
   uint8_t error = Wire.endTransmission();
@@ -692,7 +692,7 @@ uint8_t getSlaveStatus() {
 }
 
 // Wait for renderer to complete and confirm render status
-bool waitForRenderCompletion(uint32_t timeout_ms = 30000) {
+static bool waitForRenderCompletion(uint32_t timeout_ms = 30000) {
   Serial.println("Waiting for renderer to be ready for rendering...");
   unsigned long start_time = millis();
   
@@ -729,7 +729,7 @@ bool waitForRenderCompletion(uint32_t timeout_ms = 30000) {
 }
 
 // Shut down ESP32 for maximum power savings
-void shutdownESP32() {
+static void shutdownESP32() {
   Serial.println("=== POWER SHUTDOWN SEQUENCE ===");
   Serial.println("✓ Image transfer and rendering completed successfully");
   Serial.println("💤 Shutting down ESP32 to save battery power...");
@@ -747,7 +747,7 @@ void shutdownESP32() {
 }
 
 // Send complete image to Pi Pico slave
-bool sendCompleteImage() {
+static bool sendCompleteImage() {
   // Determine image source and size
   const uint8_t* image_data;
   size_t image_size;
@@ -802,7 +802,7 @@ bool sendCompleteImage() {
   return true;
 }
 
-bool initI2C() {
+static bool initI2C() {
   Serial.println("Initializing I2C master communication...");
   
   printI2CConfiguration();
@@ -860,7 +860,7 @@ bool initI2C() {
 // ========================================
 
 // Set WiFi to low power mode for energy-efficient boot/connection
-void setWiFiLowPowerMode() {
+static void setWiFiLowPowerMode() {
   Serial.println("📶 Setting WiFi to LOW POWER mode for energy-efficient boot");
   
   // ESP32 low power WiFi settings
@@ -879,7 +879,7 @@ void setWiFiLowPowerMode() {
 }
 
 // Switch WiFi to high performance mode for fast downloads
-void setWiFiPerformanceMode() {
+static void setWiFiPerformanceMode() {
   Serial.println("🚀 Switching WiFi to HIGH PERFORMANCE mode for fast downloads");
   
   // ESP32 high performance WiFi settings
@@ -898,7 +898,7 @@ void setWiFiPerformanceMode() {
 }
 
 // Shutdown WiFi completely for deep sleep
-void setWiFiShutdownMode() {
+static void setWiFiShutdownMode() {
   Serial.println("💤 Setting WiFi to SHUTDOWN mode for deep sleep");
   
   // Complete WiFi shutdown for deep sleep
@@ -911,7 +911,7 @@ void setWiFiShutdownMode() {
 }
 
 // ESP32 Model Detection and Information Display
-void printESP32ModelInfo() {
+static void printESP32ModelInfo() {
 #ifdef ESP8266
   Serial.println("\n📱 === ESP8266 HARDWARE INFORMATION ===");
   // Chip Information
@@ -1002,7 +1002,7 @@ void printESP32ModelInfo() {
 }
 
 // Get battery voltage from Pi Pico with retry logic
-float getBatteryVoltage() {
+static float getBatteryVoltage() {
   Serial.println("Requesting battery voltage from Pi Pico...");
   unsigned long battery_start = millis();
   
@@ -1080,7 +1080,7 @@ float getBatteryVoltage() {
 }
 
 // Send battery information to Pi Pico for display overlay
-bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles) {
+static bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles) {
   Serial.printf("Sending battery info to display: %.2fV, %d cycles\n", voltage, cycles);
   
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
@@ -1110,7 +1110,7 @@ bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles) {
 }
 
 // Get debug mode status from Pi Pico
-bool getDebugMode() {
+static bool getDebugMode() {
   Serial.println("Requesting debug mode status from Pi Pico...");
   
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
@@ -1162,7 +1162,7 @@ bool getDebugMode() {
 }
 
 // Set debug mode on Pi Pico
-bool setDebugMode(bool enable) {
+static bool setDebugMode(bool enable) {
   Serial.printf("Setting debug mode: %s\n", enable ? "ON" : "OFF");
   
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
@@ -1210,7 +1210,7 @@ bool setDebugMode(bool enable) {
 }
 
 // Get RTC wakeup interval from Pi Pico (in minutes)
-uint32_t getWakeupInterval() {
+static uint32_t getWakeupInterval() {
   Serial.println("Requesting wakeup interval from Pi Pico...");
   
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
@@ -1240,7 +1240,7 @@ uint32_t getWakeupInterval() {
 }
 
 // Set RTC wakeup interval on Pi Pico (in minutes)
-bool setWakeupInterval(uint32_t minutes) {
+static bool setWakeupInterval(uint32_t minutes) {
   Serial.printf("Setting wakeup interval to %" PRIu32 " minutes...\n", minutes);
   
   if (minutes < 1 || minutes > 43800) {
@@ -1284,7 +1284,7 @@ bool setWakeupInterval(uint32_t minutes) {
 }
 
 // Get charging status from Pi Pico (0=not charging, 1=charging, 2=charge complete, 3=no external power)
-uint8_t getChargingStatus() {
+static uint8_t getChargingStatus() {
   Serial.println("Requesting charging status from Pi Pico...");
   
   // Try multiple times in case Pi Pico is busy
@@ -1347,7 +1347,7 @@ uint8_t getChargingStatus() {
 }
 
 // Put renderer to sleep immediately
-bool putRendererToSleep() {
+static bool putRendererToSleep() {
   Serial.println("Sending sleep command to Pi Pico...");
   
   Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
@@ -1382,7 +1382,7 @@ bool putRendererToSleep() {
 // AUTHENTICATION AND SECURITY FUNCTIONS
 // ========================================
 
-bool checkAuthentication() {
+static bool checkAuthentication() {
   if (isAuthenticated && millis() < authTimeout) {
     return true;
   }
@@ -1390,7 +1390,7 @@ bool checkAuthentication() {
   return false;
 }
 
-void handleLogin() {
+static void handleLogin() {
   if (server.method() == HTTP_POST) {
     String password = server.arg("password");
     
@@ -1448,13 +1448,13 @@ void handleLogin() {
   }
 }
 
-void handleLogout() {
+static void handleLogout() {
   isAuthenticated = false;
   authTimeout = 0;
   server.send(200, "text/plain", "Logged out");
 }
 
-String getLoginPage() {
+static String getLoginPage() {
   return R"(<html><head><title>Login</title><meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="UTF-8">
 <style>body{font-family:Arial;margin:0;padding:0;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);height:100vh;display:flex;align-items:center;justify-content:center}
 .login{background:white;padding:40px;border-radius:15px;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-width:400px;width:100%}
@@ -1510,7 +1510,7 @@ document.getElementById('f').onsubmit=function(e){
 // FIRMWARE UPDATE FUNCTIONS
 // ========================================
 
-void handleFirmwareUpdate() {
+static void handleFirmwareUpdate() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -1552,7 +1552,7 @@ void handleFirmwareUpdate() {
 // ========================================
 
 // Initialize battery data from persistent storage with wear leveling
-void initBatteryData() {
+static void initBatteryData() {
   Serial.println("Initializing battery data from persistent storage...");
   
   // Load display cycle count from wear-leveled namespace
@@ -1619,7 +1619,7 @@ void initBatteryData() {
 }
 
 // Save battery data to persistent storage with wear leveling
-void saveBatteryData() {
+static void saveBatteryData() {
   // Use same wear leveling as URL storage
   String namespace_base = "pf";
   uint32_t current_cycle = write_cycle_counter;
@@ -1640,7 +1640,7 @@ void saveBatteryData() {
 }
 
 // Initialize URL storage and load existing URLs with wear leveling support
-void initUrlStorage() {
+static void initUrlStorage() {
   Serial.println("Initializing wear-leveled URL storage...");
   
   // FLASH WEAR LEVELING: Find the most recent namespace with valid data
@@ -1748,7 +1748,7 @@ void initUrlStorage() {
 }
 
 // Save URLs to persistent storage
-void saveUrls() {
+static void saveUrls() {
   // FLASH WEAR LEVELING: Distribute writes across different namespaces
   // This prevents wearing out the same flash sectors by rotating storage locations
   String namespace_base = "pf"; // Short namespace for efficiency
@@ -1785,7 +1785,7 @@ void saveUrls() {
 }
 
 // Save admin settings with wear leveling
-void saveAdminSettings() {
+static void saveAdminSettings() {
   // FLASH WEAR LEVELING: Use separate namespace rotation for admin settings
   String admin_namespace = "admin" + String((write_cycle_counter / 4) % 4); // Rotate every 4 cycles
   
@@ -1800,7 +1800,7 @@ void saveAdminSettings() {
 
 // Calculate battery percentage from voltage using Li-ion discharge curve
 // Same algorithm as used in the display library for consistency
-int calculateBatteryPercentage(float voltage) {
+static int calculateBatteryPercentage(float voltage) {
   if (voltage >= 4.0f) {
     return 100; // Everything above 4.0V is 100%
   } else if (voltage <= 3.3f) {
@@ -1831,7 +1831,7 @@ int calculateBatteryPercentage(float voltage) {
 }
 
 // Get the current URL and advance to next with wear leveling
-String getCurrentUrlAndAdvance() {
+static String getCurrentUrlAndAdvance() {
   if (urlCount == 0) {
     return "";
   }
@@ -1851,7 +1851,7 @@ String getCurrentUrlAndAdvance() {
 }
 
 // Add a new URL
-bool addUrl(const String& url) {
+static bool addUrl(const String& url) {
   if (urlCount >= MAX_URLS) {
     Serial.println("Cannot add URL - maximum reached");
     return false;
@@ -1879,7 +1879,7 @@ bool addUrl(const String& url) {
 }
 
 // Remove a URL by index
-bool removeUrl(int index) {
+static bool removeUrl(int index) {
   if (index < 0 || index >= urlCount) {
     return false;
   }
@@ -1903,7 +1903,7 @@ bool removeUrl(int index) {
 }
 
 // Simplified WiFi Setup UI for AP mode
-const char* getWiFiSetupUI() {
+static const char* getWiFiSetupUI() {
   static String html;
   
   html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>ESP32PhotoFrame WiFi Setup</title>";
@@ -2031,7 +2031,7 @@ const char* getWiFiSetupUI() {
 }
 
 // HTML for the web UI
-const char* getWebUI() {
+static const char* getWebUI() {
   static String html; // Use String instead of fixed buffer to avoid truncation
   
   // Generate URL list HTML
@@ -2202,7 +2202,7 @@ const char* getWebUI() {
 }
 
 // Web server handlers
-void handleRoot() {
+static void handleRoot() {
   Serial.println("📡 HTTP request received to /");
   
   // Check authentication and serve full UI (only when connected to WiFi)
@@ -2268,7 +2268,7 @@ void handleRoot() {
   server.send(200, "text/html; charset=utf-8", getWebUI());
 }
 
-void handleSetWakeup() {
+static void handleSetWakeup() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2288,7 +2288,7 @@ void handleSetWakeup() {
   }
 }
 
-void handleSetDebugMode() {
+static void handleSetDebugMode() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2309,7 +2309,7 @@ void handleSetDebugMode() {
   }
 }
 
-void handleAddUrl() {
+static void handleAddUrl() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2328,7 +2328,7 @@ void handleAddUrl() {
   }
 }
 
-void handleDeleteUrl() {
+static void handleDeleteUrl() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2347,7 +2347,7 @@ void handleDeleteUrl() {
   }
 }
 
-void handleChangePassword() {
+static void handleChangePassword() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2370,7 +2370,7 @@ void handleChangePassword() {
   }
 }
 
-void handleDisplayCurrent() {
+static void handleDisplayCurrent() {
   if (!checkAuthentication()) {
     server.send(401, "text/plain", "Unauthorized");
     return;
@@ -2393,7 +2393,7 @@ void handleDisplayCurrent() {
   }
 }
 
-void handleDisplayImage() {
+static void handleDisplayImage() {
   if (!checkAuthentication()) {
     server.send(401, "text/plain", "Unauthorized");
     return;
@@ -2428,7 +2428,7 @@ void handleDisplayImage() {
   }
 }
 
-void handleNextImage() {
+static void handleNextImage() {
   if (!checkAuthentication()) {
     server.send(401, "text/plain", "Unauthorized");
     return;
@@ -2457,7 +2457,7 @@ void handleNextImage() {
   }
 }
 
-void handleNotFound() {
+static void handleNotFound() {
   String message = "Page not found\n";
   message += "URI: " + server.uri() + "\n";
   message += "Method: " + String(server.method()) + "\n";
@@ -2469,7 +2469,7 @@ void handleNotFound() {
 }
 
 // Simple test handler for debugging connectivity
-void handleTest() {
+static void handleTest() {
   String response = "ESP32PhotoFrame Test Page\n\n";
   response += "✅ Web server is working!\n";
   response += "Time: " + String(millis()) + " ms\n";
@@ -2490,7 +2490,7 @@ void handleTest() {
 }
 
 // WiFi management handlers
-void handleScanWifi() {
+static void handleScanWifi() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2514,7 +2514,7 @@ void handleScanWifi() {
   server.send(200, "application/json", json);
 }
 
-void handleConnectWifi() {
+static void handleConnectWifi() {
   if (!checkAuthentication()) {
     server.send(401, "text/html; charset=utf-8", getLoginPage());
     return;
@@ -2568,7 +2568,7 @@ void handleConnectWifi() {
 }
 
 // Initialize web server
-void setupWebServer() {
+static void setupWebServer() {
   Serial.println("🌐 Setting up web server...");
   
   // Only set up the custom web server when connected to WiFi (not in AP mode)
@@ -2745,7 +2745,7 @@ void setup() {
 }
 
 // Auto-fetch functionality that runs once on boot after WiFi/I2C initialization
-void autoFetchOnBoot() {
+static void autoFetchOnBoot() {
   Serial.println("=== AUTO-FETCH ON BOOT ===");
   unsigned long auto_fetch_start = millis();
   
@@ -2802,7 +2802,7 @@ void autoFetchOnBoot() {
 }
 
 // Download and convert BMP to e-paper format with streaming (192,000 bytes)
-bool downloadAndConvertBmpImage(const char* url) {
+static bool downloadAndConvertBmpImage(const char* url) {
   Serial.printf("🚀 ESP32 PERFORMANCE: Starting BMP download and streaming conversion from: %s\n", url);
   
   // ESP32 HIGH-PRECISION TIMING for breakthrough performance measurement
