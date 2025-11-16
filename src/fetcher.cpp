@@ -16,7 +16,6 @@
 #include <WiFiManager.h>
 #include <WiFiClientSecure.h> // For HTTPS support
 #include <Wire.h>
-#include <ImageData.h>
 #include <Preferences.h> // For persistent URL storage
 #include <DNSServer.h> // For captive portal support
 
@@ -34,7 +33,10 @@ static uint64_t mySleepTimeUS = 30ULL * 60ULL * 1000000ULL;
 #define esp_deep_sleep_start() ESP.deepSleep(mySleepTimeUS)
 #define esp_sleep_enable_timer_wakeup(sleepTimeUS) do { mySleepTimeUS = (sleepTimeUS); } while(0)
 
+#define IMAGE7COLOR_SIZE 192000
+
 #else /* ESP32 */
+#include <ImageData.h>
 #include <HTTPClient.h>
 #include <ESPmDNS.h>
 #include <esp_sleep.h> // For deep sleep power management
@@ -48,6 +50,8 @@ static uint64_t mySleepTimeUS = 30ULL * 60ULL * 1000000ULL;
 // ESP32 Model Detection Includes
 #include <esp_chip_info.h>
 #include <esp_system.h>
+
+#define IMAGE7COLOR_SIZE sizeof(Image7color)
 #endif
 
 // ESP32 Performance Optimization Includes
@@ -172,7 +176,7 @@ static int64_t total_i2c_time_us = 0;  // Microsecond precision timing
 #endif
 static size_t total_bytes_transferred = 0;
 static uint32_t currentChunk = 0;  // Current chunk being sent
-static uint32_t totalChunks = (sizeof(Image7color) + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SIZE; // Total chunks needed
+static uint32_t totalChunks = (IMAGE7COLOR_SIZE + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SIZE; // Total chunks needed
 
 // I2C command definitions for master->slave communication
 #define CMD_WRITE_CHUNK       0x01
@@ -313,7 +317,7 @@ static void printI2CConfiguration() {
   Serial.printf("  SDA (Data)       : GPIO %d (connects to Renderer pin 4)\n", I2C_SDA_PIN);
   Serial.printf("  SCL (Clock)      : GPIO %d (connects to Renderer pin 5)\n", I2C_SCL_PIN);
   Serial.printf("Clock: 1.5MHz (Proven Optimal)\n");
-  Serial.printf("Image size: %d bytes\n", sizeof(Image7color));
+  Serial.printf("Image size: %d bytes\n", IMAGE7COLOR_SIZE);
   Serial.printf("Total chunks: %d\n", totalChunks);
   Serial.println("=====================================");
   Serial.println("");
@@ -651,6 +655,7 @@ static void shutdownESP32() {
   esp_deep_sleep_start();
 }
 
+#ifndef ESP8266
 // Send complete image to Pi Pico slave
 static bool sendCompleteImage() {
   // Determine image source and size
@@ -700,6 +705,7 @@ static bool sendCompleteImage() {
   Serial.println("✓ Complete image sent and render command issued");
   return true;
 }
+#endif
 
 static bool initI2C() {
   Serial.println("Initializing I2C master communication...");
@@ -3222,6 +3228,9 @@ void loop() {
           Serial.println("⚠ Render completion timeout - may still be working");
         }
       } else {
+#ifdef ESP8266
+        Serial.println("⚠ BMP conversion failed, send nothing");
+#else
         Serial.println("⚠ BMP conversion failed, trying static image as fallback");
         
         // Fallback to static image
@@ -3238,6 +3247,7 @@ void loop() {
         } else {
           Serial.println("✗ Even fallback image transfer failed");
         }
+#endif
       }
       
       // BATTERY MODE: Always go to deep sleep after image transfer (ignore web server activity)
