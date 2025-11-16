@@ -62,16 +62,13 @@ extern "C" {
 // Forward declarations
 static void autoFetchOnBoot();
 static bool downloadAndConvertBmpImage(const char* url);
-static bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size);
 static bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, size_t total_size);
 static bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles);
-static bool getDebugMode();
 static bool setDebugMode(bool enable);
 static int calculateBatteryPercentage(float voltage);
 static void saveUrls();
 static void saveAdminSettings();
 static void initUrlStorage();
-static void initBatteryData();
 static void saveBatteryData();
 static String getCurrentUrlAndAdvance();
 
@@ -85,11 +82,6 @@ static void cleanupHttpClient(HTTPClient& http, WiFiClient* client) {
 }
 static bool addUrl(const String& url);
 static bool removeUrl(int index);
-
-// ESP32 WiFi Power Management Functions for Download Optimization
-static void setWiFiLowPowerMode();
-static void setWiFiPerformanceMode();
-static void setWiFiShutdownMode();
 
 // ESP32 Model Detection and Information Display
 static void printESP32ModelInfo();
@@ -282,15 +274,6 @@ static uint8_t rgbToEpaperColor(uint8_t r, uint8_t g, uint8_t b) {
   }
   
   return best_color;
-}
-
-// Convert palette index to RGB using BMP palette
-static void paletteToRgb(uint8_t index, const uint8_t* palette, uint8_t* r, uint8_t* g, uint8_t* b) {
-  // BMP palette format: B, G, R, reserved (4 bytes per color)
-  uint32_t offset = index * 4;
-  *b = palette[offset];
-  *g = palette[offset + 1];
-  *r = palette[offset + 2];
 }
 
 // Parse BMP header to extract dimensions and validate format
@@ -510,76 +493,6 @@ static bool sendImageChunkBurst(uint32_t start_address, const uint8_t* data, siz
                total_size, total_time / 1000.0, final_speed);
   
   return true;
-}
-
-// Send a chunk of data to specific address offset in Pi Pico slave memory with improved retry
-static bool sendImageChunkToAddress(uint32_t address_offset, const uint8_t* data, size_t data_size) {
-  // I2C buffer limit: 128 bytes buffer - 9 bytes header = 119 bytes max data
-  if (data_size > 119) data_size = 119; // Max data size to fit in I2C transaction with address
-
-  unsigned long chunk_start = millis();
-  
-  // Optimized retry loop - up to 3 attempts with minimal delays for speed
-  for (int attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) {
-      delay(2); // Minimal delay between retries for maximum speed (was 10ms)
-    }
-    
-    Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
-    Wire.write(CMD_WRITE_CHUNK_ADDR);
-    
-    // Send address offset (4 bytes, big endian)
-    Wire.write((address_offset >> 24) & 0xFF);
-    Wire.write((address_offset >> 16) & 0xFF); 
-    Wire.write((address_offset >> 8) & 0xFF);
-    Wire.write(address_offset & 0xFF);
-    
-    // Send data size (4 bytes, big endian)  
-    Wire.write((data_size >> 24) & 0xFF);
-    Wire.write((data_size >> 16) & 0xFF);
-    Wire.write((data_size >> 8) & 0xFF);
-    Wire.write(data_size & 0xFF);
-    
-    // Send chunk data
-    size_t written = Wire.write(data, data_size);
-    
-    // Verify all data was queued for transmission
-    if (written != data_size) {
-      if (attempt >= 1) { // Log after 2 attempts (faster feedback)
-        Serial.printf("✗ Buffer overflow: only %d of %d bytes queued for address 0x%08X (attempt %d)\n", 
-                      written, data_size, address_offset, attempt + 1);
-      }
-      Wire.endTransmission(); // Clean up
-      errorCount++;
-      continue; // Retry with minimal delay
-    }
-    
-    uint8_t error = Wire.endTransmission();
-    
-    if (error == 0) {
-      lastI2CActivity = millis();
-      i2cTransactionCount++;
-      unsigned long chunk_time = millis() - chunk_start;
-      // Log timing only for slow transfers (> 50ms) to avoid spam
-      if (chunk_time > 50) {
-        Serial.printf("⏱️ Slow I2C chunk (addr 0x%08X): %lu ms\n", address_offset, chunk_time);
-      }
-      return true; // Success!
-    } else {
-      if (attempt >= 1) { // Log after 2 attempts (faster feedback)
-        Serial.printf("✗ Failed to send chunk to address 0x%08X (attempt %d, error: %d)\n", 
-                      address_offset, attempt + 1, error);
-        if (error == 5) {
-          Serial.println("   → I2C timeout - slave may be busy processing data");
-        }
-      }
-      errorCount++;
-    }
-  }
-  
-  unsigned long chunk_time = millis() - chunk_start;
-  Serial.printf("✗ Failed to send chunk to address 0x%08X after %d attempts (took %lu ms)\n", address_offset, 3, chunk_time);
-  return false; // All attempts failed
 }
 
 // Send render command to Pi Pico slave
@@ -855,61 +768,6 @@ static bool initI2C() {
   return true;
 }
 
-// ========================================
-// ESP32 WiFi Power Management for Download Optimization
-// ========================================
-
-// Set WiFi to low power mode for energy-efficient boot/connection
-static void setWiFiLowPowerMode() {
-  Serial.println("📶 Setting WiFi to LOW POWER mode for energy-efficient boot");
-  
-  // ESP32 low power WiFi settings
-  WiFi.setSleep(WIFI_PS_MAX_MODEM); // Maximum power saving
-#ifndef ESP8266
-  WiFi.setTxPower(WIFI_POWER_2dBm); // Minimum transmission power (2dBm)
-  
-  // Reduce WiFi beacon interval monitoring for power saving
-  esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
-#endif
-  
-  Serial.println("✅ WiFi LOW POWER mode active:");
-  Serial.println("   • Power Save: MAX_MODEM (aggressive power saving)");
-  Serial.println("   • TX Power: 2dBm (minimum power consumption)");
-  Serial.println("   • Optimized for: Boot/Connection phase energy efficiency");
-}
-
-// Switch WiFi to high performance mode for fast downloads
-static void setWiFiPerformanceMode() {
-  Serial.println("🚀 Switching WiFi to HIGH PERFORMANCE mode for fast downloads");
-  
-  // ESP32 high performance WiFi settings
-  WiFi.setSleep(WIFI_PS_NONE); // Disable power saving completely
-#ifndef ESP8266
-  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Maximum transmission power (19.5dBm)
-  
-  // Disable power saving for maximum throughput
-  esp_wifi_set_ps(WIFI_PS_NONE);
-#endif
-  
-  Serial.println("✅ WiFi HIGH PERFORMANCE mode active:");
-  Serial.println("   • Power Save: DISABLED (maximum performance)");
-  Serial.println("   • TX Power: 19.5dBm (maximum signal strength)");
-  Serial.println("   • Optimized for: Fast HTTP downloads and data transfer");
-}
-
-// Shutdown WiFi completely for deep sleep
-static void setWiFiShutdownMode() {
-  Serial.println("💤 Setting WiFi to SHUTDOWN mode for deep sleep");
-  
-  // Complete WiFi shutdown for deep sleep
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
-  
-  Serial.println("✅ WiFi SHUTDOWN mode active:");
-  Serial.println("   • WiFi completely disabled");
-  Serial.println("   • Optimized for: Deep sleep power consumption");
-}
-
 // ESP32 Model Detection and Information Display
 static void printESP32ModelInfo() {
 #ifdef ESP8266
@@ -1107,58 +965,6 @@ static bool sendBatteryInfoToDisplay(float voltage, uint32_t cycles) {
     Serial.printf("✗ Failed to send battery info, error: %d\n", error);
     return false;
   }
-}
-
-// Get debug mode status from Pi Pico
-static bool getDebugMode() {
-  Serial.println("Requesting debug mode status from Pi Pico...");
-  
-  Wire.beginTransmission(PI_PICO_I2C_ADDRESS);
-  Wire.write(CMD_GET_DEBUG_STATUS);
-  uint8_t error = Wire.endTransmission();
-  
-  if (error != 0) {
-    Serial.printf("✗ Failed to send debug status command, error: %d (Pi Pico may not have updated firmware)\n", error);
-    return false; // Default to false if communication fails
-  }
-  
-  delay(100); // Give more time for Pi Pico to prepare response
-  
-  Wire.requestFrom(PI_PICO_I2C_ADDRESS, 1);
-  
-  unsigned long start = millis();
-  while (Wire.available() < 1 && (millis() - start) < 500) { // Longer timeout
-    delay(10);
-  }
-  
-  if (Wire.available() >= 1) {
-    uint8_t status_or_debug = Wire.read();
-    
-    // Check if this is a debug status response (0x88) or direct debug value
-    if (status_or_debug == 0x88) {
-      // This is a status response, need to read another byte
-      delay(50);
-      Wire.requestFrom(PI_PICO_I2C_ADDRESS, 1);
-      start = millis();
-      while (Wire.available() < 1 && (millis() - start) < 200) {
-        delay(5);
-      }
-      if (Wire.available() >= 1) {
-        uint8_t debug_status = Wire.read();
-        bool is_enabled = (debug_status != 0);
-        Serial.printf("✓ Debug mode status: %s\n", is_enabled ? "ON" : "OFF");
-        return is_enabled;
-      }
-    } else {
-      // Direct response or old firmware - treat as debug status
-      bool is_enabled = (status_or_debug != 0);
-      Serial.printf("✓ Debug mode status (legacy): %s\n", is_enabled ? "ON" : "OFF");
-      return is_enabled;
-    }
-  }
-  
-  Serial.println("✗ Failed to read debug mode status response (Pi Pico may need firmware update)");
-  return false; // Default to false if no response
 }
 
 // Set debug mode on Pi Pico
@@ -1551,73 +1357,6 @@ static void handleFirmwareUpdate() {
 // URL MANAGEMENT FUNCTIONS
 // ========================================
 
-// Initialize battery data from persistent storage with wear leveling
-static void initBatteryData() {
-  Serial.println("Initializing battery data from persistent storage...");
-  
-  // Load display cycle count from wear-leveled namespace
-  String namespace_base = "pf";
-  uint32_t highest_cycle = 0;
-  String active_namespace = "pf0"; // Default
-  
-  // Find the most recent namespace (same as URL storage)
-  for (int ns = 0; ns < 8; ns++) {
-    String test_namespace = namespace_base + String(ns);
-    preferences.begin(test_namespace.c_str(), true); // Read-only
-    
-    uint32_t cycle = preferences.getInt("writeCycle", 0);
-    if (cycle > 0 && cycle > highest_cycle) {
-      highest_cycle = cycle;
-      active_namespace = test_namespace;
-    }
-    preferences.end();
-  }
-  
-  // Load battery data from active namespace
-  preferences.begin(active_namespace.c_str(), false);
-  display_cycle_count = preferences.getUInt("displayCycles", 0);
-  uint8_t last_charging_state = preferences.getUChar("lastCharging", 3);
-  
-  // Load last known good battery voltage (fallback if I2C fails)
-  float last_known_voltage = preferences.getFloat("lastVoltage", 3.7f);
-  preferences.end();
-  
-  Serial.printf("✓ Loaded battery data: %d display cycles, last charging state: %d, last voltage: %.3fV\n", 
-               display_cycle_count, last_charging_state, last_known_voltage);
-  
-  // Try to get current battery values from hardware
-  Serial.println("Attempting to get current battery status from Pi Pico...");
-  current_battery_voltage = getBatteryVoltage();
-  current_charging_status = getChargingStatus();
-  
-  // If I2C communication failed, use last known values but mark as stale
-  if (current_battery_voltage < 0) {
-    Serial.printf("⚠ I2C communication failed - using last known voltage: %.3fV\n", last_known_voltage);
-    current_battery_voltage = last_known_voltage;
-  } else {
-    // Save successful reading for future use
-    preferences.begin(active_namespace.c_str(), false);
-    preferences.putFloat("lastVoltage", current_battery_voltage);
-    preferences.end();
-  }
-  
-  // Check if we just transitioned to full charge (reset cycles)
-  if (last_charging_state != 2 && current_charging_status == 2) {
-    Serial.println("🔋 Battery just completed charging - resetting cycle count");
-    display_cycle_count = 0;
-    saveBatteryData();
-  }
-  
-  int battery_percentage = calculateBatteryPercentage(current_battery_voltage);
-  Serial.printf("✓ Battery initialization complete: %.3fV, %d%%, %d cycles\n", 
-               current_battery_voltage, battery_percentage, display_cycle_count);
-  
-  if (current_battery_voltage < 0) {
-    Serial.println("⚠ Warning: Battery monitoring may be unreliable due to I2C communication issues");
-    Serial.println("  → Check Pi Pico connection and ensure it's running properly");
-  }
-}
-
 // Save battery data to persistent storage with wear leveling
 static void saveBatteryData() {
   // Use same wear leveling as URL storage
@@ -1900,134 +1639,6 @@ static bool removeUrl(int index) {
   
   Serial.printf("✓ Removed URL at index %d, %d URLs remaining\n", index, urlCount);
   return true;
-}
-
-// Simplified WiFi Setup UI for AP mode
-static const char* getWiFiSetupUI() {
-  static String html;
-  
-  html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>ESP32PhotoFrame WiFi Setup</title>";
-  html += "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
-  html += "<style>";
-  html += "body{font-family:Arial;margin:0;padding:20px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center}";
-  html += ".container{background:white;padding:30px;border-radius:15px;box-shadow:0 8px 32px rgba(0,0,0,0.2);max-width:500px;width:100%}";
-  html += "h1{color:#333;text-align:center;margin-bottom:10px;font-size:24px}";
-  html += ".subtitle{text-align:center;color:#666;margin-bottom:30px}";
-  html += ".status{background:#e3f2fd;border:1px solid #2196f3;padding:15px;border-radius:8px;margin-bottom:20px}";
-  html += ".status h3{margin:0 0 10px 0;color:#1976d2}";
-  html += "input[type=\"text\"],input[type=\"password\"]{width:100%;padding:12px;border:2px solid #ddd;border-radius:8px;font-size:16px;margin:10px 0;box-sizing:border-box}";
-  html += "input:focus{outline:none;border-color:#4CAF50}";
-  html += ".btn{width:100%;padding:12px;background:#4CAF50;color:white;border:none;border-radius:8px;font-size:16px;cursor:pointer;margin:10px 0}";
-  html += ".btn:hover{background:#45a049}.btn:disabled{background:#ccc;cursor:not-allowed}";
-  html += ".btn-secondary{background:#2196f3}.btn-secondary:hover{background:#1976d2}";
-  html += "#wifi-networks{background:#f9f9f9;border:1px solid #ddd;border-radius:5px;max-height:200px;overflow-y:auto;margin:10px 0}";
-  html += ".network-item{padding:12px;border-bottom:1px solid #eee;cursor:pointer;display:flex;justify-content:space-between;align-items:center}";
-  html += ".network-item:hover{background:#e8f5e8}.network-item:last-child{border-bottom:none}";
-  html += ".network-name{font-weight:bold}.network-info{color:#666;font-size:12px}";
-  html += ".message{padding:10px;border-radius:5px;margin:10px 0;display:none}";
-  html += ".message.success{background:#d4edda;border:1px solid #c3e6cb;color:#155724}";
-  html += ".message.error{background:#f8d7da;border:1px solid #f5c6cb;color:#721c24}";
-  html += ".hidden{display:none}";
-  html += ".instructions{background:#fff3e0;padding:15px;border-radius:8px;border-left:4px solid #FF9800;margin-bottom:20px}";
-  html += ".instructions h3{margin:0 0 10px 0;color:#F57C00}";
-  html += "</style></head><body>";
-  
-  html += "<div class=\"container\">";
-  html += "<h1>&#128246; WiFi Setup</h1>";
-  html += "<p class=\"subtitle\">ESP32PhotoFrame Configuration</p>";
-  
-  html += "<div class=\"status\">";
-  html += "<h3>&#128225; Access Point Active</h3>";
-  html += "<p><strong>Device IP:</strong> 192.168.0.1</p>";
-  html += "<p><strong>Connected Clients:</strong> " + String(WiFi.softAPgetStationNum()) + "</p>";
-  html += "<p><strong>Status:</strong> Ready for WiFi configuration</p>";
-  html += "</div>";
-  
-  html += "<div class=\"instructions\">";
-  html += "<h3>&#128295; Setup Instructions</h3>";
-  html += "<ol><li>Scan for available networks below</li>";
-  html += "<li>Click on your WiFi network name</li>";
-  html += "<li>Enter your WiFi password</li>";
-  html += "<li>Click Connect to save settings</li></ol>";
-  html += "</div>";
-  
-  html += "<button class=\"btn btn-secondary\" onclick=\"scanWifi()\" id=\"scan-btn\">";
-  html += "&#128269; Scan for WiFi Networks</button>";
-  
-  html += "<div id=\"wifi-networks\"></div>";
-  
-  html += "<div id=\"wifi-form\" class=\"hidden\">";
-  html += "<input type=\"text\" id=\"ssid\" placeholder=\"WiFi Network Name\" readonly>";
-  html += "<input type=\"password\" id=\"password\" placeholder=\"WiFi Password\">";
-  html += "<button class=\"btn\" onclick=\"connectWifi()\" id=\"connect-btn\">";
-  html += "&#128246; Connect to WiFi</button>";
-  html += "<button class=\"btn-secondary btn\" onclick=\"hideWifiForm()\">";
-  html += "&#10006; Cancel</button>";
-  html += "</div>";
-  
-  html += "<div id=\"message\" class=\"message\"></div>";
-  
-  html += "<div style=\"text-align:center;color:#666;margin-top:30px;font-size:12px;\">";
-  html += "ESP32PhotoFrame WiFi Configuration Portal</div>";
-  html += "</div>";
-  
-  // Add JavaScript
-  html += "<script>";
-  html += "function showMessage(text,isSuccess){";
-  html += "const msg=document.getElementById('message');";
-  html += "msg.textContent=text;";
-  html += "msg.className='message '+(isSuccess?'success':'error');";
-  html += "msg.style.display='block';";
-  html += "setTimeout(()=>{msg.style.display='none'},5000);}";
-  
-  html += "function scanWifi(){";
-  html += "const btn=document.getElementById('scan-btn');";
-  html += "const networks=document.getElementById('wifi-networks');";
-  html += "btn.disabled=true;btn.textContent='\\uD83D\\uDD0D Scanning...';";
-  html += "networks.innerHTML='<div style=\"padding:15px;text-align:center;\">Scanning for networks...</div>';";
-  html += "fetch('/scanWifi').then(r=>r.json()).then(data=>{";
-  html += "let html='';if(data.length===0){";
-  html += "html='<div style=\"padding:15px;text-align:center;color:#666;\">No networks found</div>';}else{";
-  html += "data.forEach(net=>{const strength=net.rssi>-60?'\\uD83D\\uDCF6':'\\uD83D\\uDCF6';";
-  html += "const security=net.encryption?'\\uD83D\\uDD12':'\\uD83D\\uDD13';";
-  html += "html+='<div class=\"network-item\" onclick=\"selectNetwork(\\''+net.ssid.replace(/'/g,\"\\\\\\\\'\")+'\\',' +net.encryption+')\"><div><div class=\"network-name\">'+net.ssid+'</div>';";
-  html += "html+='<div class=\"network-info\">'+net.rssi+' dBm \\u2022 '+(net.encryption?'Secured':'Open')+'</div></div>';";
-  html += "html+='<div>'+strength+' '+security+'</div></div>';});}";
-  html += "networks.innerHTML=html;}).catch(e=>{";
-  html += "networks.innerHTML='<div style=\"padding:15px;text-align:center;color:#d32f2f;\">Scan failed</div>';";
-  html += "showMessage('Network scan failed',false);}).finally(()=>{";
-  html += "btn.disabled=false;btn.textContent='\\uD83D\\uDD0D Scan for WiFi Networks';});}";
-  
-  html += "function selectNetwork(ssid,encrypted){";
-  html += "document.getElementById('ssid').value=ssid;";
-  html += "document.getElementById('password').value='';";
-  html += "document.getElementById('wifi-form').classList.remove('hidden');";
-  html += "if(!encrypted){document.getElementById('password').placeholder='No password required (open network)';}";
-  html += "else{document.getElementById('password').placeholder='WiFi Password';}";
-  html += "showMessage('Selected network: '+ssid,true);}";
-  
-  html += "function hideWifiForm(){document.getElementById('wifi-form').classList.add('hidden');}";
-  
-  html += "function connectWifi(){";
-  html += "const ssid=document.getElementById('ssid').value;";
-  html += "const password=document.getElementById('password').value;";
-  html += "const btn=document.getElementById('connect-btn');";
-  html += "if(!ssid){showMessage('Please select a network first',false);return;}";
-  html += "btn.disabled=true;btn.textContent='\\uD83D\\uDCF6 Connecting...';";
-  html += "showMessage('Attempting to connect...',true);";
-  html += "fetch('/connectWifi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},";
-  html += "body:'ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(password)})";
-  html += ".then(r=>r.text()).then(response=>{";
-  html += "if(response.includes('Connected')){showMessage(response,true);";
-  html += "setTimeout(()=>{showMessage('WiFi connected! Device will restart.',true);";
-  html += "setTimeout(()=>{window.location.reload();},3000);},2000);}else{showMessage(response,false);}";
-  html += "}).catch(e=>{showMessage('Connection failed',false);})";
-  html += ".finally(()=>{btn.disabled=false;btn.textContent='\\uD83D\\uDCF6 Connect to WiFi';});}";
-  
-  html += "setTimeout(()=>{scanWifi();},1000);";
-  html += "</script></body></html>";
-  
-  return html.c_str();
 }
 
 // HTML for the web UI
