@@ -199,11 +199,6 @@ static uint32_t totalChunks = (sizeof(Image7color) + I2C_CHUNK_SIZE - 1) / I2C_C
 #define STATUS_DEBUG_SET      0x89  // Debug mode set successfully
 #define STATUS_DEBUG_ERROR    0x8A  // Error setting debug mode
 
-// Image download functionality
-static uint8_t* downloaded_image = nullptr;
-static size_t downloaded_size = 0;
-static bool download_success = false;
-
 // Connection monitoring
 static unsigned long lastI2CActivity = 0;
 
@@ -662,15 +657,9 @@ static bool sendCompleteImage() {
   const uint8_t* image_data;
   size_t image_size;
   
-  if (download_success && downloaded_image && downloaded_size > 0) {
-    image_data = downloaded_image;
-    image_size = downloaded_size;
-    Serial.printf("Using downloaded image: %d bytes\n", image_size);
-  } else {
-    image_data = Image7color;
-    image_size = sizeof(Image7color);
-    Serial.printf("Using static image: %d bytes\n", image_size);
-  }
+  image_data = Image7color;
+  image_size = sizeof(Image7color);
+  Serial.printf("Using static image: %d bytes\n", image_size);
   
   uint32_t totalChunks = (image_size + I2C_CHUNK_SIZE - 1) / I2C_CHUNK_SIZE;
   Serial.printf("Starting image transfer: %d bytes in %d chunks\n", image_size, totalChunks);
